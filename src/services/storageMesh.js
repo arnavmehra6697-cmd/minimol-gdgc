@@ -290,6 +290,35 @@ export class StorageMeshManager {
     return false;
   }
 
+  clearAllDemoNodes() {
+    this.nodes = this.nodes.filter(n => n.type === 'LOCAL_HOST');
+    this.notify();
+  }
+
+  addDemoNode() {
+    const count = this.nodes.length;
+    const newNode = {
+      id: `edge-node-${Date.now()}`,
+      name: `Peer Device ${count}`,
+      type: 'EDGE_PEER',
+      ip: `192.168.1.${20 + count}`,
+      port: 4000 + count,
+      status: 'ONLINE',
+      isSimulatedOffline: false,
+      availableDiskMB: 35000,
+      totalDiskMB: 50000,
+      latencyMs: 14 + count,
+      uptimeSeconds: 600,
+      storedChunksCount: 0,
+      storedChunksBytes: 0,
+      storageDir: `.hivenet_storage/node_${count}`,
+      storedCids: new Set(),
+    };
+    this.nodes.push(newNode);
+    this.notify();
+    return newNode;
+  }
+
   getAllFiles() {
     return Array.from(this.cidRegistry.values()).sort((a, b) => b.timestamp - a.timestamp);
   }

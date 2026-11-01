@@ -38,6 +38,16 @@ export default function App() {
     }
   };
 
+  const handleClearDemoNodes = () => {
+    storageMesh.clearAllDemoNodes();
+    setNodes([...storageMesh.nodes]);
+  };
+
+  const handleAddDemoNode = () => {
+    storageMesh.addDemoNode();
+    setNodes([...storageMesh.nodes]);
+  };
+
   const handleUploadComplete = () => {
     setFiles(storageMesh.getAllFiles());
     setCurrentView('dashboard');
@@ -97,13 +107,30 @@ export default function App() {
                       Devices sharing local hard drive space. Test the "Turn Off" button on any device to test backup resilience.
                     </p>
                   </div>
-                  <button
-                    onClick={() => setActiveTab('upload')}
-                    className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs flex items-center space-x-1.5 self-start shadow-sm"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Upload New Photo</span>
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    {nodes.length > 1 && (
+                      <button
+                        onClick={handleClearDemoNodes}
+                        className="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-semibold transition-colors"
+                        title="Remove all demo devices and keep only this machine"
+                      >
+                        Remove Demo Devices
+                      </button>
+                    )}
+                    <button
+                      onClick={handleAddDemoNode}
+                      className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors"
+                    >
+                      + Add Test Device
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('upload')}
+                      className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs flex items-center space-x-1.5 shadow-sm"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>Upload Photo</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Device Cards Grid */}

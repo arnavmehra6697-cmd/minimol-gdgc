@@ -40,7 +40,18 @@ export function NodeCard({ node, onToggleOffline, onRemoveNode }) {
           <span className={`h-2 w-2 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
           <span>{isOnline ? 'Active & Sharing Storage' : 'Device Turned Off (Simulated)'}</span>
         </div>
-        <span className="font-mono text-[11px] text-slate-500">{node.ip}:{node.port}</span>
+        <div className="flex items-center space-x-2">
+          <span className="font-mono text-[11px] text-slate-500">{node.ip}:{node.port}</span>
+          {!isHost && onRemoveNode && (
+            <button
+              onClick={() => onRemoveNode(node.id)}
+              className="text-[10px] text-red-600 hover:text-red-800 font-bold px-1.5 py-0.2 rounded bg-red-100 hover:bg-red-200 border border-red-300 transition-colors"
+              title="Remove Device from Display"
+            >
+              ✕ Remove
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="p-5 space-y-4">
@@ -123,20 +134,31 @@ export function NodeCard({ node, onToggleOffline, onRemoveNode }) {
           </div>
         </div>
 
-        {/* Kill Switch Button */}
-        <button
-          onClick={() => onToggleOffline(node.id)}
-          className={`w-full py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all ${
-            isOnline
-              ? 'bg-slate-100 hover:bg-red-50 text-slate-700 hover:text-red-700 border border-slate-200 hover:border-red-200'
-              : 'bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-md shadow-emerald-600/20'
-          }`}
-        >
-          <Power className="h-3.5 w-3.5" />
-          <span>
-            {isOnline ? 'Turn Device Off (Test Disconnect)' : 'Reconnect Device'}
-          </span>
-        </button>
+        {/* Actions Button Row */}
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            onClick={() => onToggleOffline(node.id)}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all ${
+              isOnline
+                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                : 'bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-sm'
+            }`}
+          >
+            <Power className="h-3.5 w-3.5" />
+            <span>{isOnline ? 'Turn Off (Test)' : 'Turn On'}</span>
+          </button>
+
+          {!isHost && onRemoveNode && (
+            <button
+              onClick={() => onRemoveNode(node.id)}
+              className="py-2 px-3 rounded-xl text-xs font-semibold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors flex items-center space-x-1"
+              title="Unpair and remove this device from HiveNet"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Unpair</span>
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
