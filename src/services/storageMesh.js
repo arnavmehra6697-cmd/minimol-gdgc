@@ -37,47 +37,10 @@ export class StorageMeshManager {
       storedCids: new Set(),
     };
 
-    // Node 2: Secondary Peer (e.g. Teammate Laptop or Virtual Edge Node)
-    const peerNodeB = {
-      id: 'node-edge-beta',
-      name: "Edge Node Beta (Laptop Peer)",
-      type: 'EDGE_PEER',
-      ip: '192.168.1.18',
-      port: 4002,
-      status: 'ONLINE',
-      isSimulatedOffline: false,
-      availableDiskMB: 36200, // 36.2 GB free
-      totalDiskMB: 50000,
-      latencyMs: 14,          // Local Wi-Fi ping ~14ms
-      uptimeSeconds: 3200,
-      storedChunksCount: 0,
-      storedChunksBytes: 0,
-      storageDir: '.hivenet_storage/node_beta',
-      storedCids: new Set(),
-    };
+    // App starts with ONLY this machine. Real peers join via "Connect a Device" tab.
+    this.nodes = [hostNode];
 
-    // Node 3: Third Peer (e.g. Mobile Phone / Edge Node Gamma)
-    const peerNodeC = {
-      id: 'node-edge-gamma',
-      name: "Edge Node Gamma (Mobile Node)",
-      type: 'MOBILE_EDGE',
-      ip: '192.168.1.42',
-      port: 4003,
-      status: 'ONLINE',
-      isSimulatedOffline: false,
-      availableDiskMB: 18400, // 18.4 GB free
-      totalDiskMB: 32000,
-      latencyMs: 28,          // Mobile Wi-Fi ping ~28ms
-      uptimeSeconds: 940,
-      storedChunksCount: 0,
-      storedChunksBytes: 0,
-      storageDir: '.hivenet_storage/node_gamma',
-      storedCids: new Set(),
-    };
-
-    this.nodes = [hostNode, peerNodeB, peerNodeC];
-
-    // If running inside Electron, query real OS host disk stats
+    // If running inside Electron, query real OS host disk stats (actual disk, not RAM)
     if (this.isElectron) {
       window.hiveNative.getDiskInfo().then(info => {
         if (info) {
@@ -166,25 +129,31 @@ export class StorageMeshManager {
     const { selectedNodes, rankedNodes, decisionLog } = this.router.evaluateNodes(this.nodes, compressedSize);
 
     const storePromises = selectedNodes.map(async (node) => {
-      // Physical storage: If Electron is active, write to disk
-      if (this.isElectron) {
+      // Physical storage: If Electron is active, write to local disk via IPC
+      if (this.isElectron && (node.type === 'LOCAL_HOST' || node.type === 'EDGE_PEER')) {
         try {
-          await window.hiveNative.writeChunk(node.id, cid, arrayBuffer);
+          // Convert ArrayBuffer to Uint8Array for safe Electron IPC serialization
+          const uint8 = new Uint8Array(arrayBuffer);
+          await window.hiveNative.writeChunk(node.id, cid, uint8);
+          console.log(`[HiveNet] ✅ Written ${cid.slice(0,12)}... to local disk for node ${node.id}`);
         } catch (err) {
-          console.warn(`Local disk write fallback for node ${node.id}:`, err);
+          console.warn(`[HiveNet] ⚠️ Local disk write failed for node ${node.id}:`, err);
         }
       }
 
-      // If it's a physical LAN peer, stream via HTTP POST
+      // If it's a physical LAN peer, stream via HTTP POST to their Express server
       if (node.type === 'PHYSICAL_LAN_PEER') {
         try {
-          await fetch(`http://${node.ip}:${node.port}/api/store/${cid}`, {
+          const resp = await fetch(`http://${node.ip}:${node.port}/api/store/${cid}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/octet-stream' },
-            body: arrayBuffer,
+            body: new Uint8Array(arrayBuffer),
+            signal: AbortSignal.timeout(10000),
           });
+          if (!resp.ok) throw new Error(`Peer returned ${resp.status}`);
+          console.log(`[HiveNet] ✅ Sent ${cid.slice(0,12)}... to LAN peer ${node.ip}:${node.port}`);
         } catch (err) {
-          console.warn(`LAN peer write failed for ${node.ip}:`, err);
+          console.warn(`[HiveNet] ⚠️ LAN peer write failed for ${node.ip}:`, err);
         }
       }
 
@@ -227,8 +196,27 @@ export class StorageMeshManager {
   }
 
   /**
-   * Content-Addressable Retrieval with Node Disconnect Resilience
-   * Retrieves image from primary replica. If primary is offline, auto-fails over to secondary!
+   * Ping a LAN peer to check if it's actually reachable.
+   * Returns true if node responds within 2 seconds.
+   */
+  async isPeerReachable(node) {
+    if (node.type === 'LOCAL_HOST') return !node.isSimulatedOffline;
+    if (node.isSimulatedOffline) return false;
+    try {
+      const resp = await fetch(`http://${node.ip}:${node.port}/api/telemetry`, {
+        signal: AbortSignal.timeout(2000),
+      });
+      return resp.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Content-Addressable Retrieval with Real Node Disconnect Resilience.
+   * - For LOCAL_HOST: reads from in-memory blob or local disk.
+   * - For PHYSICAL_LAN_PEER: makes real HTTP GET to peer's /api/retrieve/:cid endpoint.
+   * - If primary replica is unreachable (real ping), auto-failovers to next replica.
    */
   async retrieveImage(cid) {
     const record = this.cidRegistry.get(cid);
@@ -242,24 +230,50 @@ export class StorageMeshManager {
     let failedNode = null;
     let blobData = record.blob;
 
-    // Check replicas in order
+    // Try each replica in order — with REAL reachability check for LAN peers
     for (const nodeId of record.replicas) {
       const node = this.nodes.find(n => n.id === nodeId);
       if (!node) continue;
 
-      if (node.status === 'ONLINE' && !node.isSimulatedOffline) {
-        // Node is active!
-        retrievedFrom = node;
-        break;
-      } else {
-        // Node is offline! Trigger failover
+      // Real ping check (not just flag-based simulation)
+      const reachable = await this.isPeerReachable(node);
+
+      if (!reachable) {
         failoverOccurred = true;
         failedNode = node;
+        // Mark node status as offline in the mesh for UI feedback
+        if (!node.isSimulatedOffline) {
+          node.status = 'OFFLINE';
+          this.notify();
+        }
+        continue;
       }
+
+      // Node is reachable — fetch the blob
+      if (node.type === 'PHYSICAL_LAN_PEER') {
+        // Real HTTP retrieval from LAN peer disk
+        try {
+          const resp = await fetch(`http://${node.ip}:${node.port}/api/retrieve/${cid}`, {
+            signal: AbortSignal.timeout(5000),
+          });
+          if (!resp.ok) throw new Error(`Peer returned ${resp.status}`);
+          const arrayBuffer = await resp.arrayBuffer();
+          blobData = new Blob([arrayBuffer], { type: 'image/webp' });
+        } catch (fetchErr) {
+          console.warn(`[HiveNet] Remote fetch failed from ${node.ip}:${node.port}:`, fetchErr.message);
+          failoverOccurred = true;
+          failedNode = node;
+          continue;
+        }
+      }
+      // For LOCAL_HOST: blobData is already record.blob (in-memory)
+
+      retrievedFrom = node;
+      break;
     }
 
     if (!retrievedFrom) {
-      throw new Error(`All replica nodes for CID ${cid} are currently offline!`);
+      throw new Error(`All replica nodes for CID ${cid} are currently offline or unreachable!`);
     }
 
     const elapsedMs = Math.round(performance.now() - startTime + retrievedFrom.latencyMs);
@@ -267,7 +281,7 @@ export class StorageMeshManager {
     return {
       cid,
       blob: blobData,
-      previewUrl: record.previewUrl,
+      previewUrl: blobData instanceof Blob ? URL.createObjectURL(blobData) : record.previewUrl,
       retrievedFrom,
       failoverOccurred,
       failedNode,

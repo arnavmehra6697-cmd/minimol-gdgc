@@ -19,9 +19,13 @@ export class SmartStorageRouter {
   evaluateNodes(nodes, chunkSize = 0) {
     const activeNodes = nodes.filter(n => n.status === 'ONLINE' && !n.isSimulatedOffline);
 
-    if (activeNodes.length < this.replicationFactor) {
-      throw new Error(`Insufficient active nodes to satisfy Replication Factor >= ${this.replicationFactor}. Currently available: ${activeNodes.length}`);
+    if (activeNodes.length === 0) {
+      throw new Error('No active devices available to store this photo. Connect at least one device first.');
     }
+
+    // Graceful degradation: if fewer nodes than RF, use what we have and warn
+    const effectiveRF = Math.min(this.replicationFactor, activeNodes.length);
+    const isUnderReplicated = activeNodes.length < this.replicationFactor;
 
     // Determine max/min ranges for normalization
     const maxDisk = Math.max(...activeNodes.map(n => n.availableDiskMB), 1);
@@ -75,12 +79,22 @@ export class SmartStorageRouter {
     // Rank nodes by final score descending
     scoredNodes.sort((a, b) => b.scores.finalScore - a.scores.finalScore);
 
-    // Pick top nodes according to replication factor (at least 2 distinct nodes)
-    const selectedNodes = scoredNodes.slice(0, this.replicationFactor);
+    // Pick top nodes according to effective replication factor
+    const selectedNodes = scoredNodes.slice(0, effectiveRF);
+
+    // Build human-readable reasoning that works with 1 or more nodes
+    let reasoning;
+    if (selectedNodes.length >= 2) {
+      reasoning = `Selected [${selectedNodes[0].name}] (Score: ${selectedNodes[0].scores.finalScore}) and [${selectedNodes[1].name}] (Score: ${selectedNodes[1].scores.finalScore}) based on optimal disk capacity and lowest network latency.`;
+    } else {
+      reasoning = `Saved on [${selectedNodes[0].name}] (Score: ${selectedNodes[0].scores.finalScore}). ⚠️ Connect a second device to enable 2-copy backup for full safety.`;
+    }
 
     const decisionLog = {
       timestamp: new Date().toISOString(),
       replicationFactor: this.replicationFactor,
+      effectiveRF,
+      isUnderReplicated,
       activeNodesCount: activeNodes.length,
       selectedNodeIds: selectedNodes.map(n => n.id),
       selectedNodeNames: selectedNodes.map(n => n.name),
@@ -92,7 +106,7 @@ export class SmartStorageRouter {
         latencyMs: n.latencyMs,
         uptimeSec: n.uptimeSeconds,
       })),
-      reasoning: `Selected [${selectedNodes[0].name}] (Score: ${selectedNodes[0].scores.finalScore}) and [${selectedNodes[1].name}] (Score: ${selectedNodes[1].scores.finalScore}) based on optimal disk capacity and lowest network latency.`,
+      reasoning,
     };
 
     return {

@@ -49,12 +49,26 @@ function startPeerDaemon(port = 4001, nodeId = 'primary') {
       } catch (err) {}
     });
 
+    // Real disk telemetry via statfsSync (works on Node v18+)
+    let freeDiskMB = 10000;
+    let totalDiskMB = 50000;
+    try {
+      const drive = process.platform === 'win32' ? 'C:\\' : '/';
+      const diskStats = fs.statfsSync(drive);
+      freeDiskMB = Math.floor((diskStats.bfree * diskStats.bsize) / (1024 * 1024));
+      totalDiskMB = Math.floor((diskStats.blocks * diskStats.bsize) / (1024 * 1024));
+    } catch (diskErr) {
+      // Fallback if statfsSync unavailable
+      freeDiskMB = Math.floor(os.freemem() / (1024 * 1024));
+      totalDiskMB = Math.floor(os.totalmem() / (1024 * 1024));
+    }
+
     res.json({
       nodeId,
       status: 'ONLINE',
       uptimeSeconds: Math.floor(process.uptime()),
-      freeDiskMB: Math.floor(os.freemem() / (1024 * 1024)),
-      totalDiskMB: Math.floor(os.totalmem() / (1024 * 1024)),
+      freeDiskMB,
+      totalDiskMB,
       storedChunksCount: files.length,
       storageUsedMB: (totalUsedBytes / (1024 * 1024)).toFixed(2),
       hostname: os.hostname(),
@@ -140,11 +154,22 @@ function createWindow() {
 // Setup IPC handlers for native filesystem & telemetry operations
 function setupIPC() {
   ipcMain.handle('get-disk-info', async () => {
+    let freeMB = 10000;
+    let totalMB = 50000;
+    try {
+      const drive = process.platform === 'win32' ? 'C:\\' : '/';
+      const diskStats = fs.statfsSync(drive);
+      freeMB = Math.floor((diskStats.bfree * diskStats.bsize) / (1024 * 1024));
+      totalMB = Math.floor((diskStats.blocks * diskStats.bsize) / (1024 * 1024));
+    } catch (diskErr) {
+      freeMB = Math.floor(os.freemem() / (1024 * 1024));
+      totalMB = Math.floor(os.totalmem() / (1024 * 1024));
+    }
     return {
-      freeBytes: os.freemem(),
-      totalBytes: os.totalmem(),
-      freeMB: Math.floor(os.freemem() / (1024 * 1024)),
-      totalMB: Math.floor(os.totalmem() / (1024 * 1024)),
+      freeMB,
+      totalMB,
+      freeBytes: freeMB * 1024 * 1024,
+      totalBytes: totalMB * 1024 * 1024,
       platform: os.platform(),
       hostname: os.hostname(),
       baseStorageDir: BASE_STORAGE_DIR,
@@ -154,8 +179,22 @@ function setupIPC() {
   ipcMain.handle('write-chunk', async (event, { nodeId, cid, buffer }) => {
     const nodeDir = getStorageDirForNode(nodeId);
     const filePath = path.join(nodeDir, `${cid}.webp`);
-    await fs.promises.writeFile(filePath, Buffer.from(buffer));
-    return { success: true, filePath, size: buffer.byteLength || buffer.length };
+    // Handle Uint8Array, ArrayBuffer, or plain object from IPC serialization
+    let data;
+    if (Buffer.isBuffer(buffer)) {
+      data = buffer;
+    } else if (buffer instanceof Uint8Array || buffer instanceof ArrayBuffer) {
+      data = Buffer.from(buffer);
+    } else if (buffer && typeof buffer === 'object') {
+      // Electron IPC sometimes deserializes Uint8Array as a plain object {0: x, 1: y, ...}
+      const values = Object.values(buffer);
+      data = Buffer.from(values);
+    } else {
+      data = Buffer.from(buffer);
+    }
+    await fs.promises.writeFile(filePath, data);
+    console.log(`[HiveNet Disk] Wrote ${cid.slice(0,12)}... to ${filePath} (${data.length} bytes)`);
+    return { success: true, filePath, size: data.length };
   });
 
   ipcMain.handle('read-chunk', async (event, { nodeId, cid }) => {

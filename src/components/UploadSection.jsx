@@ -265,8 +265,13 @@ export function UploadSection({ storageMesh, onUploadComplete }) {
                 <ShieldCheck className="h-4 w-4 text-blue-600" />
                 <h4 className="font-bold text-xs text-slate-900">Smart Router Choice</h4>
               </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                2 Copies Saved
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                routingResult.decisionLog.isUnderReplicated
+                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                  : 'bg-blue-50 text-blue-700 border-blue-200'
+              }`}>
+                {routingResult.replicas.length} {routingResult.replicas.length === 1 ? 'Copy' : 'Copies'} Saved
+                {routingResult.decisionLog.isUnderReplicated && ' ⚠️'}
               </span>
             </div>
 

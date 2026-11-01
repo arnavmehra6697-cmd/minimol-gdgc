@@ -16,6 +16,7 @@
   "build": {
     "appId": "com.hivenet.desktop",
     "productName": "HiveNet",
+    "icon": "build/icon.ico",
     "directories": {
       "output": "release"
     },
