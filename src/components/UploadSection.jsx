@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, CheckCircle2, AlertTriangle, ArrowRight, ShieldCheck, Cpu, FileImage, Sparkles } from 'lucide-react';
+import { UploadCloud, CheckCircle2, AlertTriangle, ArrowRight, ShieldCheck, Cpu, FileImage, Sparkles, Sliders } from 'lucide-react';
 import { compressImage } from '../services/compressor.js';
 
 export function UploadSection({ storageMesh, onUploadComplete }) {
@@ -9,6 +9,7 @@ export function UploadSection({ storageMesh, onUploadComplete }) {
   const [compressionResult, setCompressionResult] = useState(null);
   const [routingResult, setRoutingResult] = useState(null);
   const [error, setError] = useState(null);
+  const [routerPriority, setRouterPriority] = useState('balanced'); // 'balanced' | 'speed' | 'storage'
   const inputRef = useRef(null);
 
   const handleDrag = (e) => {
@@ -45,12 +46,21 @@ export function UploadSection({ storageMesh, onUploadComplete }) {
     setCompressing(true);
 
     try {
-      // Step 1: Mandatory Client-Side WebP Compression
+      // 1. Client-Side WebP Compression
       const compRes = await compressImage(file);
       setCompressionResult(compRes);
       setCompressing(false);
 
-      // Step 2: Query Smart Router & Store with Replication Factor = 2
+      // 2. Adjust Router Weights based on User Policy Preference
+      if (routerPriority === 'speed') {
+        storageMesh.router.weights = { disk: 0.20, latency: 0.60, uptime: 0.20 };
+      } else if (routerPriority === 'storage') {
+        storageMesh.router.weights = { disk: 0.70, latency: 0.15, uptime: 0.15 };
+      } else {
+        storageMesh.router.weights = { disk: 0.45, latency: 0.35, uptime: 0.20 };
+      }
+
+      // 3. Smart Route & Store
       setRouting(true);
       const routeRes = await storageMesh.uploadAndRoute(compRes);
       setRoutingResult(routeRes);
@@ -64,37 +74,72 @@ export function UploadSection({ storageMesh, onUploadComplete }) {
     }
   };
 
-  // Helper to load sample test images for quick hackathon demo
+  // Helper to load sample test images for quick demo
   const loadSampleImage = async (type = 'nature') => {
-    // Generate a simple high-res canvas image dynamically to avoid network dependency
     const canvas = document.createElement('canvas');
     canvas.width = 1600;
     canvas.height = 1200;
     const ctx = canvas.getContext('2d');
 
-    // Draw rich gradient and pattern
     const grad = ctx.createLinearGradient(0, 0, 1600, 1200);
-    grad.addColorStop(0, type === 'nature' ? '#065f46' : '#1e3a8a');
-    grad.addColorStop(0.5, type === 'nature' ? '#10b981' : '#3b82f6');
-    grad.addColorStop(1, '#f59e0b');
+    grad.addColorStop(0, type === 'nature' ? '#38bdf8' : '#818cf8');
+    grad.addColorStop(1, '#3b82f6');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 1600, 1200);
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 64px sans-serif';
-    ctx.fillText(`HiveNet Edge Test Image (${type.toUpperCase()})`, 100, 300);
-    ctx.font = '36px monospace';
-    ctx.fillText(`Timestamp: ${new Date().toISOString()}`, 100, 400);
-    ctx.fillText('Replication Target: RF >= 2 across decentralized peers', 100, 480);
+    ctx.font = 'bold 54px sans-serif';
+    ctx.fillText(`HiveNet Sample Photo (${type.toUpperCase()})`, 100, 300);
+    ctx.font = '28px sans-serif';
+    ctx.fillText(`Timestamp: ${new Date().toLocaleTimeString()}`, 100, 400);
+    ctx.fillText('Automatic 2-Device Backup Enabled', 100, 460);
 
     canvas.toBlob((blob) => {
-      const file = new File([blob], `hivenet-test-${type}-${Date.now()}.png`, { type: 'image/png' });
+      const file = new File([blob], `sample-${type}-${Date.now()}.png`, { type: 'image/png' });
       processFile(file);
     }, 'image/png');
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-4xl mx-auto">
+      {/* Policy Selector Bar */}
+      <div className="glass-panel p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center space-x-2">
+          <Sliders className="h-4 w-4 text-sky-600" />
+          <div>
+            <h4 className="text-xs font-bold text-slate-900">Smart Router Priority:</h4>
+            <p className="text-[11px] text-slate-500">Choose what the router prioritizes when selecting backup devices.</p>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-1.5 p-1 bg-slate-100 rounded-xl">
+          <button
+            onClick={() => setRouterPriority('balanced')}
+            className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+              routerPriority === 'balanced' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            ⚖️ Balanced (Auto)
+          </button>
+          <button
+            onClick={() => setRouterPriority('speed')}
+            className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+              routerPriority === 'speed' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            ⚡ Fastest Speed
+          </button>
+          <button
+            onClick={() => setRouterPriority('storage')}
+            className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+              routerPriority === 'storage' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            💾 Most Free Space
+          </button>
+        </div>
+      </div>
+
       {/* Upload Dropzone */}
       <div
         onDragEnter={handleDrag}
@@ -102,10 +147,10 @@ export function UploadSection({ storageMesh, onUploadComplete }) {
         onDragOver={handleDrag}
         onDrop={handleDrop}
         onClick={() => inputRef.current?.click()}
-        className={`relative border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center cursor-pointer transition-all ${
+        className={`relative border-2 border-dashed rounded-3xl p-8 sm:p-12 text-center cursor-pointer transition-all ${
           dragActive
-            ? 'border-amber-400 bg-amber-500/10 scale-[1.01]'
-            : 'border-dark-700 bg-dark-850/60 hover:border-amber-500/50 hover:bg-dark-800/80'
+            ? 'border-sky-500 bg-sky-50 scale-[1.01]'
+            : 'border-slate-300 bg-white/70 hover:border-sky-400 hover:bg-white shadow-sm'
         }`}
       >
         <input
@@ -117,156 +162,142 @@ export function UploadSection({ storageMesh, onUploadComplete }) {
         />
 
         <div className="flex flex-col items-center justify-center space-y-4">
-          <div className="h-16 w-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shadow-inner">
-            <UploadCloud className="h-8 w-8 animate-bounce" />
+          <div className="h-16 w-16 rounded-2xl bg-sky-100 flex items-center justify-center text-sky-600 shadow-inner">
+            <UploadCloud className="h-8 w-8 text-sky-600" />
           </div>
 
           <div className="space-y-1">
-            <h3 className="text-lg font-bold text-white tracking-tight">
-              Drop your photo here, or <span className="text-amber-400 underline">browse files</span>
+            <h3 className="text-base sm:text-lg font-bold text-slate-900">
+              Drop your photo here, or <span className="text-sky-600 underline">browse files</span>
             </h3>
-            <p className="text-xs text-slate-400 max-w-md mx-auto">
-              Client-side WebP compression will downscale & optimize bytes before dispatching to the 2 highest-scoring peer nodes.
+            <p className="text-xs text-slate-500 max-w-md mx-auto">
+              Your photo is automatically compressed before sending to save bandwidth, then saved on 2 separate devices for safety.
             </p>
           </div>
 
-          {/* Demo Quick-Test Buttons */}
+          {/* Quick Demo Buttons */}
           <div className="pt-2 flex flex-wrap gap-2 justify-center" onClick={(e) => e.stopPropagation()}>
-            <span className="text-xs text-slate-500 self-center mr-1">Quick Demo:</span>
+            <span className="text-xs text-slate-400 self-center mr-1">Quick Demo:</span>
             <button
               onClick={() => loadSampleImage('nature')}
-              className="px-3 py-1.5 rounded-lg bg-dark-800 hover:bg-dark-700 border border-dark-700 text-xs text-amber-300 font-medium flex items-center space-x-1.5"
+              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs text-slate-700 font-medium flex items-center space-x-1.5 transition-colors"
             >
-              <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-              <span>Generate Test Image A</span>
+              <Sparkles className="h-3.5 w-3.5 text-sky-600" />
+              <span>Sample Photo A</span>
             </button>
             <button
               onClick={() => loadSampleImage('tech')}
-              className="px-3 py-1.5 rounded-lg bg-dark-800 hover:bg-dark-700 border border-dark-700 text-xs text-blue-300 font-medium flex items-center space-x-1.5"
+              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs text-slate-700 font-medium flex items-center space-x-1.5 transition-colors"
             >
-              <Sparkles className="h-3.5 w-3.5 text-blue-400" />
-              <span>Generate Test Image B</span>
+              <Sparkles className="h-3.5 w-3.5 text-blue-600" />
+              <span>Sample Photo B</span>
             </button>
           </div>
         </div>
       </div>
 
       {error && (
-        <div className="p-4 rounded-xl bg-red-950/40 border border-red-800/50 text-red-300 text-xs flex items-center space-x-3">
-          <AlertTriangle className="h-5 w-5 text-red-400 shrink-0" />
+        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center space-x-3">
+          <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
           <div>{error}</div>
         </div>
       )}
 
-      {/* Loading States */}
+      {/* Loading Bar */}
       {(compressing || routing) && (
-        <div className="p-6 rounded-xl bg-dark-850 border border-dark-700 space-y-3 animate-pulse">
-          <div className="flex items-center space-x-3">
-            <Cpu className="h-5 w-5 text-amber-400 animate-spin" />
-            <span className="text-sm font-semibold text-white">
-              {compressing ? 'Executing Client-Side WebP Compression & SHA-256 Hashing...' : 'Smart Router Evaluating Peer Telemetry & Routing Chunks...'}
+        <div className="glass-panel p-5 rounded-2xl space-y-2">
+          <div className="flex items-center space-x-2.5 text-xs font-semibold text-slate-800">
+            <Cpu className="h-4 w-4 text-sky-600 animate-spin" />
+            <span>
+              {compressing ? 'Compressing photo to WebP format...' : 'Smart Router choosing 2 safest devices...'}
             </span>
           </div>
-          <div className="w-full bg-dark-800 rounded-full h-1.5 overflow-hidden">
-            <div className="bg-amber-400 h-full w-2/3 animate-pulse" />
+          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+            <div className="bg-sky-500 h-full w-2/3 animate-pulse" />
           </div>
         </div>
       )}
 
-      {/* Results Breakdown Grid */}
+      {/* Results Breakdown */}
       {compressionResult && routingResult && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Card 1: Client-Side Compression Audit */}
-          <div className="p-5 rounded-xl bg-dark-850 border border-dark-700 space-y-4">
-            <div className="flex items-center justify-between border-b border-dark-750 pb-3">
-              <div className="flex items-center space-x-2">
-                <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-                <h4 className="font-bold text-sm text-white">1. Client-Side Compression Audit</h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {/* Card 1: Compression Audit */}
+          <div className="glass-panel p-5 rounded-2xl space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center space-x-1.5">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <h4 className="font-bold text-xs text-slate-900">Storage Saver Audit</h4>
               </div>
-              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                Rule Met: Mandatory Compression
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Rule Met: Compressed Client-Side
               </span>
             </div>
 
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               <img
                 src={compressionResult.previewUrl}
-                alt="Compressed preview"
-                className="h-20 w-20 rounded-lg object-cover border border-dark-700 shrink-0"
+                alt="Preview"
+                className="h-16 w-16 rounded-xl object-cover border border-slate-200 shrink-0"
               />
-              <div className="space-y-1 text-xs">
-                <p className="font-semibold text-white truncate max-w-xs">{compressionResult.originalName}</p>
-                <p className="text-slate-400">Dimensions: {compressionResult.dimensions.width} × {compressionResult.dimensions.height}px</p>
-                <div className="flex items-center space-x-2 pt-1 font-mono">
-                  <span className="text-slate-400 line-through">{(compressionResult.originalSize / 1024).toFixed(1)} KB</span>
-                  <ArrowRight className="h-3 w-3 text-emerald-400" />
-                  <span className="text-emerald-400 font-bold">{(compressionResult.compressedSize / 1024).toFixed(1)} KB</span>
-                  <span className="text-amber-400 font-bold">({compressionResult.compressionRatio}% saved)</span>
+              <div className="space-y-0.5 text-xs">
+                <p className="font-semibold text-slate-900 truncate max-w-xs">{compressionResult.originalName}</p>
+                <div className="flex items-center space-x-2 text-[11px]">
+                  <span className="text-slate-400 line-through">{(compressionResult.originalSize / 1024).toFixed(0)} KB</span>
+                  <ArrowRight className="h-3 w-3 text-emerald-600" />
+                  <span className="font-bold text-emerald-700">{(compressionResult.compressedSize / 1024).toFixed(0)} KB</span>
+                  <span className="text-sky-700 font-bold">({compressionResult.compressionRatio}% saved)</span>
                 </div>
               </div>
             </div>
 
-            {/* Content Addressable CID */}
-            <div className="p-3 rounded-lg bg-dark-900 border border-dark-800 space-y-1">
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                Cryptographic Content ID (SHA-256 CID):
-              </span>
-              <p className="font-mono text-xs text-amber-300 break-all select-all">
+            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 space-y-0.5">
+              <span className="text-[10px] text-slate-500 font-semibold uppercase">Unique File Fingerprint (SHA-256):</span>
+              <p className="font-mono text-[11px] text-slate-700 break-all select-all">
                 {compressionResult.cid}
               </p>
             </div>
           </div>
 
-          {/* Card 2: Smart Router Decision Breakdown */}
-          <div className="p-5 rounded-xl bg-dark-850 border border-dark-700 space-y-4">
-            <div className="flex items-center justify-between border-b border-dark-750 pb-3">
-              <div className="flex items-center space-x-2">
-                <ShieldCheck className="h-5 w-5 text-blue-400" />
-                <h4 className="font-bold text-sm text-white">2. Smart Router Decision Engine</h4>
+          {/* Card 2: Router Decision */}
+          <div className="glass-panel p-5 rounded-2xl space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center space-x-1.5">
+                <ShieldCheck className="h-4 w-4 text-blue-600" />
+                <h4 className="font-bold text-xs text-slate-900">Smart Router Choice</h4>
               </div>
-              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                Replication Factor = 2
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                2 Copies Saved
               </span>
             </div>
 
-            <p className="text-xs text-slate-300 leading-relaxed bg-dark-900/60 p-2.5 rounded-lg border border-dark-800">
+            <p className="text-xs text-slate-600 leading-relaxed bg-blue-50/50 p-2.5 rounded-xl border border-blue-100/60">
               💡 {routingResult.decisionLog.reasoning}
             </p>
 
-            {/* Ranked Nodes Table */}
-            <div className="space-y-2">
-              <span className="text-[11px] font-semibold text-slate-400">Node Evaluation Scores:</span>
-              <div className="space-y-1.5">
-                {routingResult.decisionLog.rankings.map((rn, idx) => {
-                  const isChosen = routingResult.replicas.includes(rn.id);
-                  return (
-                    <div
-                      key={rn.id}
-                      className={`p-2.5 rounded-lg text-xs flex items-center justify-between border ${
-                        isChosen
-                          ? 'bg-amber-500/10 border-amber-500/30 text-white font-medium'
-                          : 'bg-dark-900 border-dark-800 text-slate-400 opacity-60'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <span className={`h-2 w-2 rounded-full ${isChosen ? 'bg-amber-400 animate-ping' : 'bg-slate-600'}`} />
-                        <span className="font-semibold">{rn.name}</span>
-                        {isChosen && (
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-400 text-dark-900 font-bold">
-                            REPLICA {idx + 1}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center space-x-3 font-mono text-[11px]">
-                        <span>Disk: {(rn.diskMB / 1024).toFixed(1)}GB</span>
-                        <span>Ping: {rn.latencyMs}ms</span>
-                        <span className="font-bold text-amber-400">Score: {rn.score}</span>
-                      </div>
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-medium text-slate-500">Devices Chosen for Storage:</span>
+              {routingResult.decisionLog.rankings.map((rn, idx) => {
+                const isChosen = routingResult.replicas.includes(rn.id);
+                return (
+                  <div
+                    key={rn.id}
+                    className={`p-2 rounded-xl text-xs flex items-center justify-between border ${
+                      isChosen ? 'bg-sky-50 border-sky-200 text-slate-900' : 'bg-slate-50 border-slate-100 text-slate-400'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-1.5">
+                      <span className={`h-2 w-2 rounded-full ${isChosen ? 'bg-sky-500' : 'bg-slate-300'}`} />
+                      <span className="font-semibold">{rn.name}</span>
+                      {isChosen && (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-sky-600 text-white font-bold">
+                          COPY {idx + 1}
+                        </span>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
+                    <span className="font-mono text-[11px] font-bold text-slate-700">Score: {rn.score}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
