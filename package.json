@@ -8,7 +8,32 @@
     "dev": "concurrently -k \"vite\" \"node electron/wait-and-launch.js\"",
     "start": "concurrently -k \"vite\" \"node electron/wait-and-launch.js\"",
     "dev:ui": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "dist": "npm run build && electron-builder",
+    "package:portable": "npm run build && electron-builder --win portable",
+    "package:dir": "npm run build && electron-builder --dir"
+  },
+  "build": {
+    "appId": "com.hivenet.desktop",
+    "productName": "HiveNet",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "portable",
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false
+    }
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -26,6 +51,7 @@
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
     "electron": "^29.1.5",
+    "electron-builder": "^26.0.12",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
     "vite": "^5.1.6"
