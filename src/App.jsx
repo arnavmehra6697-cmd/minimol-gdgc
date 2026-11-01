@@ -141,6 +141,7 @@ export default function App() {
                       node={node}
                       onToggleOffline={handleToggleOffline}
                       onRemoveNode={handleRemoveNode}
+                      onOpenStorageFolder={(nodeId) => storageMesh.openLocalStorageFolder(nodeId)}
                     />
                   ))}
                 </div>

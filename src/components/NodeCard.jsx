@@ -1,7 +1,7 @@
 import React from 'react';
-import { Laptop, Smartphone, Server, HardDrive, Wifi, Clock, Power, ShieldAlert, CheckCircle2, Trash2 } from 'lucide-react';
+import { Laptop, Smartphone, Server, HardDrive, Wifi, Clock, Power, ShieldAlert, CheckCircle2, Trash2, FolderOpen } from 'lucide-react';
 
-export function NodeCard({ node, onToggleOffline, onRemoveNode }) {
+export function NodeCard({ node, onToggleOffline, onRemoveNode, onOpenStorageFolder }) {
   const isOnline = node.status === 'ONLINE' && !node.isSimulatedOffline;
   const isHost = node.type === 'LOCAL_HOST';
   const usedMB = (node.storedChunksBytes / (1024 * 1024)).toFixed(1);
@@ -87,6 +87,26 @@ export function NodeCard({ node, onToggleOffline, onRemoveNode }) {
               <Trash2 className="h-4 w-4" />
             </button>
           )}
+        </div>
+
+        {/* Visible Physical Storage Location Banner */}
+        <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Physical Storage Path:</span>
+            {isHost && onOpenStorageFolder && (
+              <button
+                onClick={() => onOpenStorageFolder(node.id)}
+                className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-sky-100 hover:bg-sky-200 text-sky-800 text-[10px] font-bold transition-colors"
+                title="Open this physical folder in Windows Explorer"
+              >
+                <FolderOpen className="h-3 w-3 text-sky-600" />
+                <span>Open Storage Folder</span>
+              </button>
+            )}
+          </div>
+          <p className="font-mono text-[11px] text-slate-700 break-all bg-white px-2 py-1 rounded border border-slate-100 select-all">
+            {node.storageDir || `HiveNet Storage/${node.id}`}
+          </p>
         </div>
 
         {/* Free Storage Gauge */}
