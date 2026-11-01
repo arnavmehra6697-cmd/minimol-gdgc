@@ -93,16 +93,6 @@ npm run dev:ui
 
 ---
 
-## 🏆 Judge Presentation Script (2-Minute Pitch)
-
-> *"Judges, cloud storage today is centralized, vulnerable to outages, and expensive, while consumer devices sit with gigabytes of unused hard drive space. We built **HiveNet**, a decentralized edge cloud storage system running as a native standalone desktop application.*
->
-> 1. *When an image is dropped, our **client-side compression engine** downscales and converts it into WebP format before it touches the network, slashing bandwidth by over 90%.*
-> 2. *Our **Smart Storage Router** continuously evaluates peer telemetry — checking physical disk quota, latency, and uptime stability — to select the two optimal peer devices and enforce a **Replication Factor of 2**.*
-> 3. *Images are indexed by their cryptographic **SHA-256 Content ID (CID)** and physically stored on native local disks.*
-> 4. *In our live demo, we simulate **Airplane Mode** on the primary node. As you can see, our router detects the timeout and automatically fails over to the secondary replica in 18ms with **zero data loss**."*
-
----
 
 ## 👥 Team
 - **Arnav Mehra** & Team
