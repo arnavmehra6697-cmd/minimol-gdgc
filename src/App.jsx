@@ -29,6 +29,15 @@ export default function App() {
     storageMesh.toggleNodeOffline(nodeId);
   };
 
+  const handleRemoveNode = (nodeId) => {
+    try {
+      storageMesh.removeNode(nodeId);
+      setNodes([...storageMesh.nodes]);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
   const handleUploadComplete = () => {
     setFiles(storageMesh.getAllFiles());
     setCurrentView('dashboard');
@@ -104,6 +113,7 @@ export default function App() {
                       key={node.id}
                       node={node}
                       onToggleOffline={handleToggleOffline}
+                      onRemoveNode={handleRemoveNode}
                     />
                   ))}
                 </div>

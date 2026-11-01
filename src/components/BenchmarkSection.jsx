@@ -1,9 +1,14 @@
-import React, { useState } from 'react';
-import { ShieldCheck, Play, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, Cpu, Database, Check } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { 
+  ShieldCheck, Play, CheckCircle2, AlertTriangle, ArrowRight, 
+  RefreshCw, Cpu, Database, Check, History, Trash2, HelpCircle 
+} from 'lucide-react';
 import { compressImage } from '../services/compressor.js';
 
 export function BenchmarkSection({ storageMesh }) {
   const [running, setRunning] = useState(false);
+  const [completed, setCompleted] = useState(false);
+  const [history, setHistory] = useState([]);
   const [steps, setSteps] = useState([
     { id: 1, name: '1. Storage Saver Audit (WebP Compression)', status: 'IDLE', details: 'Ensure image is compressed client-side before network transfer.' },
     { id: 2, name: '2. Smart Router Multi-Factor Scoring', status: 'IDLE', details: 'Checks free disk space, lag, and uptime to pick optimal devices.' },
@@ -13,7 +18,10 @@ export function BenchmarkSection({ storageMesh }) {
   ]);
 
   const [benchmarkLog, setBenchmarkLog] = useState([]);
-  const [completed, setCompleted] = useState(false);
+
+  useEffect(() => {
+    setHistory(storageMesh.getTestHistory());
+  }, [storageMesh]);
 
   const addLog = (msg) => {
     setBenchmarkLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
@@ -86,6 +94,21 @@ export function BenchmarkSection({ storageMesh }) {
       setSteps(prev => prev.map(s => s.id === 4 ? { ...s, status: 'PASSED', details: `Primary offline! Auto-retrieved from [${backupNode.name}] in ${retrievalRes.latencyMs}ms.` } : s));
       setSteps(prev => prev.map(s => s.id === 5 ? { ...s, status: 'PASSED', details: `100% Byte-exact verification passed.` } : s));
 
+      // Save to Test History Log
+      const record = {
+        id: Date.now(),
+        time: new Date().toLocaleTimeString(),
+        date: new Date().toLocaleDateString(),
+        status: 'PASSED',
+        disconnectedDevice: primaryNode.name,
+        backupDevice: backupNode.name,
+        recoveryMs: retrievalRes.latencyMs,
+        dataLoss: '0% (Zero Loss)',
+        cid: compResult.cid.substring(0, 16) + '...',
+      };
+      storageMesh.addTestRecord(record);
+      setHistory(storageMesh.getTestHistory());
+
       setCompleted(true);
       addLog('🎉 ALL SAFETY CRITERIA PASSED & VERIFIED!');
     } catch (err) {
@@ -95,16 +118,35 @@ export function BenchmarkSection({ storageMesh }) {
     }
   };
 
+  const handleClearHistory = () => {
+    storageMesh.clearTestHistory();
+    setHistory([]);
+  };
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
+      {/* Purpose Explanation Card (Answers the User's question clearly) */}
+      <div className="glass-panel p-5 rounded-3xl bg-gradient-to-r from-sky-50/80 to-white/90 border border-sky-100 space-y-2">
+        <div className="flex items-center space-x-2 text-sky-800">
+          <HelpCircle className="h-5 w-5 text-sky-600 shrink-0" />
+          <h3 className="font-bold text-sm">Why is this Safety & Disconnect Test Required?</h3>
+        </div>
+        <p className="text-xs text-slate-600 leading-relaxed">
+          In peer-to-peer storage, everyday laptops and phones turn off, run out of battery, or disconnect. 
+          To make sure <strong>your photos are never lost</strong>, HiveNet always keeps 2 copies on different hardware (Replication Factor = 2). 
+          This test simulates what happens when a device abruptly disconnects, proving live to judges that the backup device immediately serves the file with <strong>zero data loss</strong>.
+        </p>
+      </div>
+
+      {/* Main Execution Card */}
       <div className="glass-panel p-6 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center space-x-2">
             <ShieldCheck className="h-5 w-5 text-emerald-600" />
-            <h2 className="text-base font-bold text-slate-900">Safety & Disconnect Test</h2>
+            <h2 className="text-base font-bold text-slate-900">Run Live Safety Test</h2>
           </div>
-          <p className="text-xs text-slate-500 mt-1 max-w-lg">
-            One-click test for judges. Proves that if one laptop turns off, the photo is still safe and immediately retrievable from the backup device.
+          <p className="text-xs text-slate-500 mt-0.5">
+            Executes a real end-to-end crash test to verify automatic backup failover.
           </p>
         </div>
 
@@ -118,7 +160,7 @@ export function BenchmarkSection({ storageMesh }) {
           }`}
         >
           {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4 fill-white" />}
-          <span>{running ? 'Running Safety Test...' : 'Run Live Safety Test'}</span>
+          <span>{running ? 'Executing Test...' : 'Run Safety Test'}</span>
         </button>
       </div>
 
@@ -167,7 +209,7 @@ export function BenchmarkSection({ storageMesh }) {
         })}
       </div>
 
-      {/* Real-Time Log */}
+      {/* Real-Time Live Log */}
       {benchmarkLog.length > 0 && (
         <div className="p-4 rounded-2xl bg-slate-900 text-slate-200 font-mono text-xs space-y-1 max-h-48 overflow-y-auto">
           {benchmarkLog.map((log, idx) => (
@@ -184,12 +226,74 @@ export function BenchmarkSection({ storageMesh }) {
           <div className="inline-flex p-2.5 rounded-2xl bg-emerald-100 text-emerald-700">
             <ShieldCheck className="h-7 w-7" />
           </div>
-          <h3 className="text-sm font-bold text-emerald-900">100% SPECIFICATION COMPLIANCE VERIFIED</h3>
+          <h3 className="text-sm font-bold text-emerald-900">100% FAULT TOLERANCE VERIFIED</h3>
           <p className="text-xs text-emerald-800 max-w-md mx-auto">
             Zero central cloud, mandatory client compression, telemetry routing, and auto-failover verified with 0% data loss.
           </p>
         </div>
       )}
+
+      {/* Test Records & Audit History Table */}
+      <div className="glass-panel p-6 rounded-3xl space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center space-x-2">
+            <History className="h-5 w-5 text-sky-600" />
+            <div>
+              <h3 className="font-bold text-sm text-slate-900">Safety Test Records & History</h3>
+              <p className="text-xs text-slate-500">Log of all simulated crash tests and auto-failover performance.</p>
+            </div>
+          </div>
+
+          {history.length > 0 && (
+            <button
+              onClick={handleClearHistory}
+              className="text-xs text-slate-400 hover:text-red-600 flex items-center space-x-1 transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Clear History</span>
+            </button>
+          )}
+        </div>
+
+        {history.length === 0 ? (
+          <div className="text-center py-6 text-xs text-slate-400">
+            No tests recorded yet. Click "Run Safety Test" above to log your first verified audit.
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {history.map((record) => (
+              <div
+                key={record.id}
+                className="p-3.5 rounded-2xl bg-white border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-sm hover:border-sky-200 transition-colors"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="font-bold text-slate-900">{record.time}</span>
+                    <span className="text-[10px] text-slate-400">({record.date})</span>
+                    <span className="text-[10px] px-2 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                      {record.status}
+                    </span>
+                  </div>
+                  <p className="text-slate-600">
+                    Turned off <span className="font-semibold text-red-600">[{record.disconnectedDevice}]</span> &rarr; Recovered from backup <span className="font-semibold text-emerald-700">[{record.backupDevice}]</span>
+                  </p>
+                </div>
+
+                <div className="flex items-center space-x-3 text-right">
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase font-semibold">Failover Speed:</span>
+                    <div className="font-bold text-sky-700">{record.recoveryMs} ms</div>
+                  </div>
+                  <div className="border-l border-slate-200 pl-3">
+                    <span className="text-[10px] text-slate-400 uppercase font-semibold">Data Loss:</span>
+                    <div className="font-bold text-emerald-700">{record.dataLoss}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

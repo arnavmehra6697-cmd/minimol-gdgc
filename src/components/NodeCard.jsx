@@ -1,8 +1,9 @@
 import React from 'react';
-import { Laptop, Smartphone, Server, HardDrive, Wifi, Clock, Power, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { Laptop, Smartphone, Server, HardDrive, Wifi, Clock, Power, ShieldAlert, CheckCircle2, Trash2 } from 'lucide-react';
 
-export function NodeCard({ node, onToggleOffline }) {
+export function NodeCard({ node, onToggleOffline, onRemoveNode }) {
   const isOnline = node.status === 'ONLINE' && !node.isSimulatedOffline;
+  const isHost = node.type === 'LOCAL_HOST';
   const usedMB = (node.storedChunksBytes / (1024 * 1024)).toFixed(1);
   const totalMB = node.totalDiskMB || 50000;
   const freeMB = node.availableDiskMB || 0;
@@ -43,19 +44,38 @@ export function NodeCard({ node, onToggleOffline }) {
       </div>
 
       <div className="p-5 space-y-4">
-        {/* Device Name */}
-        <div className="flex items-center space-x-3">
-          <div className={`p-2.5 rounded-xl border ${
-            isOnline
-              ? 'bg-sky-50 text-sky-600 border-sky-100'
-              : 'bg-red-100 text-red-600 border-red-200'
-          }`}>
-            <Icon className="h-5 w-5" />
+        {/* Device Name & Unpair */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className={`p-2.5 rounded-xl border ${
+              isOnline
+                ? 'bg-sky-50 text-sky-600 border-sky-100'
+                : 'bg-red-100 text-red-600 border-red-200'
+            }`}>
+              <Icon className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-1.5">
+                <h3 className="font-bold text-sm text-slate-900">{node.name}</h3>
+                {isHost && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-sky-100 text-sky-700 font-semibold">
+                    Host
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 font-mono">{node.id}</p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-bold text-sm text-slate-900">{node.name}</h3>
-            <p className="text-xs text-slate-500 font-mono">{node.id}</p>
-          </div>
+
+          {!isHost && onRemoveNode && (
+            <button
+              onClick={() => onRemoveNode(node.id)}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+              title="Unpair / Remove Device"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         {/* Free Storage Gauge */}

@@ -294,6 +294,69 @@ export class StorageMeshManager {
     return Array.from(this.cidRegistry.values()).sort((a, b) => b.timestamp - a.timestamp);
   }
 
+  removeNode(nodeId) {
+    const node = this.nodes.find(n => n.id === nodeId);
+    if (!node) return false;
+    if (node.type === 'LOCAL_HOST') {
+      throw new Error('Cannot unpair this machine (Host Device)');
+    }
+    this.nodes = this.nodes.filter(n => n.id !== nodeId);
+    this.notify();
+    return true;
+  }
+
+  addCustomNode({ name, ip = '192.168.1.50', port = 4001, freeDiskGB = 40, latencyMs = 15 }) {
+    const id = `custom-node-${Date.now()}`;
+    const newNode = {
+      id,
+      name,
+      type: 'PHYSICAL_LAN_PEER',
+      ip,
+      port,
+      status: 'ONLINE',
+      isSimulatedOffline: false,
+      availableDiskMB: freeDiskGB * 1024,
+      totalDiskMB: (freeDiskGB + 10) * 1024,
+      latencyMs,
+      uptimeSeconds: 60,
+      storedChunksCount: 0,
+      storedChunksBytes: 0,
+      storageDir: `.hivenet_storage/${id}`,
+      storedCids: new Set(),
+    };
+    this.nodes.push(newNode);
+    this.notify();
+    return newNode;
+  }
+
+  getTestHistory() {
+    try {
+      const stored = localStorage.getItem('hivenet_test_history');
+      if (stored) return JSON.parse(stored);
+    } catch (e) {}
+    return this.testHistory || [];
+  }
+
+  addTestRecord(record) {
+    const history = this.getTestHistory();
+    history.unshift(record);
+    if (history.length > 25) history.pop();
+    this.testHistory = history;
+    try {
+      localStorage.setItem('hivenet_test_history', JSON.stringify(history));
+    } catch (e) {}
+    this.notify();
+    return record;
+  }
+
+  clearTestHistory() {
+    this.testHistory = [];
+    try {
+      localStorage.removeItem('hivenet_test_history');
+    } catch (e) {}
+    this.notify();
+  }
+
   getMeshStats() {
     const totalPooledDiskMB = this.nodes.reduce((acc, n) => acc + (n.availableDiskMB || 0), 0);
     const activeNodes = this.nodes.filter(n => n.status === 'ONLINE' && !n.isSimulatedOffline);
